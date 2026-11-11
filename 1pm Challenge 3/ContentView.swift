@@ -8,6 +8,9 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         VStack {
+            Circle()
+                .fill(.red)
+                .frame(width: 50, height: 50)
         }
     }
 }
