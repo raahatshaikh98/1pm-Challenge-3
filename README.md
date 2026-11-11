@@ -1,12 +1,11 @@
 # 1pm Challenge 3
 
-An iOS app built with UIKit and Storyboards in Xcode.
+A minimal iOS app built with SwiftUI in Xcode.
 
 ## Requirements
 
 - Xcode 16 or later (developed with Xcode 27)
 - iOS 17.0+ deployment target
-- Swift 5
 
 ## Getting started
 
@@ -23,13 +22,8 @@ An iOS app built with UIKit and Storyboards in Xcode.
 1pm Challenge 3/
 ├── 1pm Challenge 3.xcodeproj      # Xcode project (shared scheme included)
 ├── 1pm Challenge 3/
-│   ├── AppDelegate.swift          # App lifecycle
-│   ├── SceneDelegate.swift        # Window / scene lifecycle
-│   ├── ViewController.swift       # Main screen
-│   ├── Base.lproj/
-│   │   └── Main.storyboard        # UI layout
-│   ├── Assets.xcassets            # App icon & accent color
-│   └── Info.plist                 # Bundle configuration
+│   ├── ContentView.swift          # The whole app: ContentView + @main App
+│   └── Assets.xcassets            # App icon & accent color
 ├── .gitignore
 └── README.md
 ```
