@@ -33,37 +33,56 @@ struct OverviewPage: View {
         ZStack {
             AppBackground()
 
-            GeometryReader { proxy in
-                let diameter = chartDiameter(for: proxy.size)
-
-                Group {
-                    if viewModel.needsPhotoPermission {
-                        permissionState
-                    } else if viewModel.isEmptyState {
-                        emptyState
-                    } else {
-                        content(diameter: diameter)
-                    }
+            if let category = detailCategory {
+                // The item list replaces the chart on the same page instead
+                // of being pushed as a separate screen.
+                OverviewCategoryDetailView(
+                    kind: kind,
+                    usage: viewModel.usage(for: category),
+                    onBack: showChart
+                ) {
+                    await onLibraryChanged?()
+                    viewModel.rescan()
                 }
-                .frame(width: proxy.size.width, height: proxy.size.height)
+                .transition(.opacity)
+            } else {
+                GeometryReader { proxy in
+                    let diameter = chartDiameter(for: proxy.size)
+
+                    Group {
+                        if viewModel.needsPhotoPermission {
+                            permissionState
+                        } else if viewModel.isEmptyState {
+                            emptyState
+                        } else {
+                            content(diameter: diameter)
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+                .transition(.opacity)
             }
         }
-        .navigationTitle(kind.title)
+        .navigationTitle(detailCategory?.title ?? kind.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(detailCategory != nil)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showFilters = true
-                } label: {
-                    Image(systemName: viewModel.isFilterActive
-                          ? "line.3.horizontal.decrease.circle.fill"
-                          : "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 17, weight: .semibold))
+            if detailCategory == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showFilters = true
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(viewModel.isFilterActive
+                                             ? AppTheme.accent
+                                             : Color.primary)
+                    }
+                    .tint(.primary)
+                    .accessibilityLabel("Filter \(kind.title)")
                 }
-                .tint(.primary)
-                .accessibilityLabel("Filter \(kind.title)")
             }
         }
         .sheet(isPresented: $showFilters) {
@@ -78,15 +97,6 @@ struct OverviewPage: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
-        }
-        .navigationDestination(item: $detailCategory) { category in
-            OverviewCategoryDetailView(
-                kind: kind,
-                usage: viewModel.usage(for: category)
-            ) {
-                await onLibraryChanged?()
-                viewModel.rescan()
-            }
         }
         .fileImporter(
             isPresented: $isImporting,
@@ -119,7 +129,9 @@ struct OverviewPage: View {
     private func content(diameter: CGFloat) -> some View {
         VStack(spacing: 0) {
             OverviewLegendView(usages: viewModel.displayedUsages) { category in
-                detailCategory = category
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    detailCategory = category
+                }
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
@@ -133,7 +145,9 @@ struct OverviewPage: View {
                 filterSummary: viewModel.filterSummary,
                 diameter: diameter
             ) { category in
-                detailCategory = category
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    detailCategory = category
+                }
             }
 
             if kind == .files {
@@ -358,5 +372,11 @@ struct OverviewPage: View {
         let widthLimit = size.width - 56
         let heightLimit = size.height * 0.48
         return min(widthLimit, heightLimit, 340)
+    }
+
+    private func showChart() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailCategory = nil
+        }
     }
 }

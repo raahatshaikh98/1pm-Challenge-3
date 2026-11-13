@@ -7,8 +7,8 @@ import SwiftUI
 import UIKit
 
 /// The app's starting page. The user taps SCAN, the broom sweeps while the
-/// storage totals are measured, and the button turns into a light-green DONE
-/// before the caller replaces this screen with the donut Home page.
+/// storage totals are measured, then the caller replaces this screen with the
+/// donut Home page as soon as the scan finishes.
 struct ScanLandingView: View {
     var onScan: () async -> Void
     var onFinished: () -> Void
@@ -82,10 +82,6 @@ struct ScanLandingView: View {
                     Capsule(style: .continuous)
                         .fill(buttonBackground)
                 )
-                .overlay {
-                    Capsule(style: .continuous)
-                        .strokeBorder(buttonBorder, lineWidth: 0.5)
-                }
         }
         .buttonStyle(.plain)
         .disabled(phase != .idle)
@@ -99,8 +95,6 @@ struct ScanLandingView: View {
             return "SCAN"
         case .scanning:
             return "SCANNING"
-        case .done:
-            return "DONE"
         }
     }
 
@@ -110,8 +104,6 @@ struct ScanLandingView: View {
             return .primary
         case .scanning:
             return AppTheme.surface
-        case .done:
-            return successColor.opacity(0.16)
         }
     }
 
@@ -121,28 +113,11 @@ struct ScanLandingView: View {
             return Color(uiColor: .systemBackground)
         case .scanning:
             return AppTheme.secondaryText
-        case .done:
-            return successColor
         }
-    }
-
-    private var buttonBorder: Color {
-        phase == .done ? successColor.opacity(0.35) : .clear
-    }
-
-    private var successColor: Color {
-        AppTheme.dynamic(light: 0x10B981, dark: 0x6EE7B7)
     }
 
     private var footnote: String {
-        switch phase {
-        case .idle:
-            return "Only the photos, videos and files you allow are measured.\nNothing leaves this iPhone."
-        case .scanning:
-            return "Sweeping your storage…"
-        case .done:
-            return "Your storage breakdown is ready."
-        }
+        "Only the photos, videos and files you allow are measured.\nNothing leaves this iPhone."
     }
 
     private var accessibilityLabel: String {
@@ -151,8 +126,6 @@ struct ScanLandingView: View {
             return "Scan storage"
         case .scanning:
             return "Scanning storage"
-        case .done:
-            return "Scan complete"
         }
     }
 
@@ -167,25 +140,10 @@ struct ScanLandingView: View {
         }
 
         Task {
-            let started = Date()
             await onScan()
 
-            // Keep the tips page visible long enough to read on small
-            // libraries, so the transition never flashes straight from SCAN
-            // to DONE.
-            let elapsed = Date().timeIntervalSince(started)
-            if elapsed < 2.5 {
-                try? await Task.sleep(for: .seconds(2.5 - elapsed))
-            }
-
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                phase = .done
-            }
-
-            // Hold the light-green DONE state long enough to register before
-            // the root is replaced by the donut Home page.
-            try? await Task.sleep(for: .milliseconds(900))
-
+            // Go straight to Home once the scan is finished; there is no
+            // intermediate DONE step to tap through.
             onFinished()
         }
     }
@@ -194,7 +152,6 @@ struct ScanLandingView: View {
 private enum ScanPhase {
     case idle
     case scanning
-    case done
 }
 
 // MARK: - Broom hero

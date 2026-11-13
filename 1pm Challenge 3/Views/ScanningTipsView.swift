@@ -10,12 +10,11 @@ import SwiftUI
 /// the wait time to point at the places in iOS where those jobs live.
 struct ScanningTipsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     @State private var tipIndex = 0
 
     private let tips = StorageTip.all
-    private let rotationInterval: Duration = .seconds(4)
+    private let rotationInterval: Duration = .seconds(5)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,11 +59,13 @@ struct ScanningTipsView: View {
                 .padding(.horizontal, 40)
                 .padding(.bottom, 28)
         }
-        .task {
-            // VoiceOver users can move between tips themselves instead of
-            // having the card change underneath the cursor.
-            guard !voiceOverEnabled else { return }
-            await rotateTips()
+        .task(id: tipIndex) {
+            // Each tip stays on screen for five seconds before moving on.
+            // Tapping the card restarts the timer for the tip being shown.
+            guard tips.count > 1 else { return }
+            try? await Task.sleep(for: rotationInterval)
+            guard !Task.isCancelled else { return }
+            advanceTip()
         }
     }
 
@@ -114,16 +115,6 @@ struct ScanningTipsView: View {
     }
 
     // MARK: - Rotation
-
-    private func rotateTips() async {
-        guard tips.count > 1 else { return }
-
-        while !Task.isCancelled {
-            try? await Task.sleep(for: rotationInterval)
-            guard !Task.isCancelled else { return }
-            advanceTip()
-        }
-    }
 
     private func advanceTip() {
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) {
