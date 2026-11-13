@@ -19,40 +19,53 @@ struct ScanLandingView: View {
         ZStack {
             AppBackground()
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 20)
-
-                BroomHero(isSweeping: phase == .scanning)
-                    .padding(.bottom, 24)
-
-                Text("Clean up your storage")
-                    .font(.system(size: 31, weight: .semibold, design: .rounded))
-                    .tracking(-0.6)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-
-                Text("See what's taking up space on your iPhone.")
-                    .font(.system(size: 14.5, weight: .regular))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 9)
-                    .padding(.horizontal, 40)
-
-                Spacer(minLength: 28)
-
-                scanButton
-
-                Text(footnote)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(AppTheme.tertiaryText)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .padding(.horizontal, 44)
-                    .padding(.top, 16)
-                    .padding(.bottom, 26)
+            if phase == .scanning {
+                // The scan can take a while on a large library, so show a
+                // compact sweeping broom and rotate through storage tips in
+                // the meantime instead of leaving the landing page frozen.
+                ScanningTipsView()
+                    .transition(.opacity)
+            } else {
+                landingContent
+                    .transition(.opacity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var landingContent: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 20)
+
+            BroomHero(isSweeping: false)
+                .padding(.bottom, 24)
+
+            Text("Clean up your storage")
+                .font(.system(size: 31, weight: .semibold, design: .rounded))
+                .tracking(-0.6)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+
+            Text("See what's taking up space on your iPhone.")
+                .font(.system(size: 14.5, weight: .regular))
+                .foregroundStyle(AppTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.top, 9)
+                .padding(.horizontal, 40)
+
+            Spacer(minLength: 28)
+
+            scanButton
+
+            Text(footnote)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(AppTheme.tertiaryText)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .padding(.horizontal, 44)
+                .padding(.top, 16)
+                .padding(.bottom, 26)
+        }
     }
 
     // MARK: - Scan button
@@ -157,11 +170,12 @@ struct ScanLandingView: View {
             let started = Date()
             await onScan()
 
-            // Keep the sweep visible for a moment on small libraries so the
-            // transition never flashes straight from SCAN to DONE.
+            // Keep the tips page visible long enough to read on small
+            // libraries, so the transition never flashes straight from SCAN
+            // to DONE.
             let elapsed = Date().timeIntervalSince(started)
-            if elapsed < 1.5 {
-                try? await Task.sleep(for: .seconds(1.5 - elapsed))
+            if elapsed < 2.5 {
+                try? await Task.sleep(for: .seconds(2.5 - elapsed))
             }
 
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
