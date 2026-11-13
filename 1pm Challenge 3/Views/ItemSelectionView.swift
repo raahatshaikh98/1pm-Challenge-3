@@ -17,18 +17,30 @@ struct ItemSelectionView: View {
 
     @State private var selectedIDs: Set<String> = []
     @State private var deletedIDs: Set<String> = []
+    @State private var activeFilters: Set<ItemFilter> = []
+    @State private var showFilters = false
     @State private var isDeleting = false
     @State private var showDeleteConfirmation = false
     @State private var errorMessage: String?
 
+    /// Items that still exist after deletions, newest first.
     private var visibleItems: [OverviewItem] {
         items
             .filter { !deletedIDs.contains($0.id) }
             .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
     }
 
+    /// Items that match every active filter. Filters narrow the current
+    /// category, so an item has to satisfy all of them.
+    private var displayedItems: [OverviewItem] {
+        guard !activeFilters.isEmpty else { return visibleItems }
+        return visibleItems.filter { item in
+            activeFilters.allSatisfy { $0.matches(item, kind: category.kind) }
+        }
+    }
+
     private var selectedItems: [OverviewItem] {
-        visibleItems.filter { selectedIDs.contains($0.id) }
+        displayedItems.filter { selectedIDs.contains($0.id) }
     }
 
     private var selectedBytes: Int64 {
@@ -36,7 +48,7 @@ struct ItemSelectionView: View {
     }
 
     private var isAllSelected: Bool {
-        !visibleItems.isEmpty && selectedIDs.count == visibleItems.count
+        !displayedItems.isEmpty && selectedIDs.count == displayedItems.count
     }
 
     private let destructiveColor = Color(hex: 0xDC2626)
@@ -48,7 +60,16 @@ struct ItemSelectionView: View {
             if visibleItems.isEmpty {
                 finishedState
             } else {
-                itemList
+                Group {
+                    if displayedItems.isEmpty {
+                        noMatchesState
+                    } else {
+                        itemList
+                    }
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    bottomBar
+                }
 
                 if isDeleting {
                     deletingOverlay
@@ -82,6 +103,17 @@ struct ItemSelectionView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .sheet(isPresented: $showFilters) {
+            ItemFilterSheet(
+                items: visibleItems,
+                kind: category.kind,
+                initialSelection: activeFilters
+            ) { filters in
+                applyFilters(filters)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - List
@@ -94,10 +126,10 @@ struct ItemSelectionView: View {
                     .padding(.bottom, 10)
 
                 LazyVStack(spacing: 0) {
-                    ForEach(visibleItems) { item in
+                    ForEach(displayedItems) { item in
                         itemRow(item)
 
-                        if item.id != visibleItems.last?.id {
+                        if item.id != displayedItems.last?.id {
                             Rectangle()
                                 .fill(AppTheme.hairline)
                                 .frame(height: 0.5)
@@ -117,9 +149,6 @@ struct ItemSelectionView: View {
             }
             .padding(.horizontal, 24)
         }
-        .safeAreaInset(edge: .bottom) {
-            deleteBar
-        }
         .allowsHitTesting(!isDeleting)
     }
 
@@ -130,9 +159,7 @@ struct ItemSelectionView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
 
-                Text(selectedIDs.isEmpty
-                     ? "Tap an item to add it to your selection."
-                     : "\(StorageFormatter.compact(selectedBytes)) selected")
+                Text(headerSubtitle)
                     .font(.system(size: 11.5, weight: .regular))
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -166,6 +193,16 @@ struct ItemSelectionView: View {
     private var selectedSummary: String {
         let count = selectedIDs.count
         return count == 1 ? "1 item selected" : "\(count) items selected"
+    }
+
+    private var headerSubtitle: String {
+        if !selectedIDs.isEmpty {
+            return "\(StorageFormatter.compact(selectedBytes)) selected"
+        }
+        if !activeFilters.isEmpty {
+            return "Showing \(displayedItems.count) of \(visibleItems.count) items."
+        }
+        return "Tap an item to add it to your selection."
     }
 
     private func itemRow(_ item: OverviewItem) -> some View {
@@ -236,9 +273,67 @@ struct ItemSelectionView: View {
         .accessibilityHidden(true)
     }
 
-    // MARK: - Delete bar
+    // MARK: - Filters and delete bar
 
-    private var deleteBar: some View {
+    private var bottomBar: some View {
+        HStack(spacing: 10) {
+            filterButton
+            deleteButton
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(AppTheme.hairline)
+                .frame(height: 0.5)
+        }
+        .allowsHitTesting(!isDeleting)
+    }
+
+    /// Three-line filter button. Tapping it opens the sheet where the filters
+    /// can be selected, matching the Overview page's filter entry point.
+    private var filterButton: some View {
+        Button {
+            showFilters = true
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(activeFilters.isEmpty
+                                     ? AppTheme.secondaryText
+                                     : Color.white)
+                    .frame(width: 50, height: 50)
+                    .background(
+                        Circle()
+                            .fill(activeFilters.isEmpty
+                                  ? AppTheme.surface
+                                  : category.color)
+                    )
+
+                if !activeFilters.isEmpty {
+                    Text("\(activeFilters.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 17, minHeight: 17)
+                        .background(
+                            Circle().fill(destructiveColor)
+                        )
+                        .offset(x: 3, y: -2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDeleting)
+        .accessibilityLabel("Filter items")
+        .accessibilityValue(activeFilters.isEmpty
+                            ? "No filters applied"
+                            : "\(activeFilters.count) filters applied")
+        .accessibilityHint("Opens the filter selection sheet")
+    }
+
+    private var deleteButton: some View {
         Button {
             showDeleteConfirmation = true
         } label: {
@@ -265,15 +360,6 @@ struct ItemSelectionView: View {
         }
         .buttonStyle(.plain)
         .disabled(selectedIDs.isEmpty || isDeleting)
-        .padding(.horizontal, 24)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(AppTheme.hairline)
-                .frame(height: 0.5)
-        }
         .accessibilityLabel(deleteButtonTitle)
         .accessibilityHint("Deletes the selected items")
     }
@@ -295,6 +381,43 @@ struct ItemSelectionView: View {
     private var deleteActionTitle: String {
         let count = selectedIDs.count
         return "Delete \(count) \(count == 1 ? "Item" : "Items")"
+    }
+
+    // MARK: - Empty filter results
+
+    private var noMatchesState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 34, weight: .medium))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Text("No matching items")
+                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
+
+            Text("Try removing a filter to see more items.")
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundStyle(AppTheme.secondaryText)
+                .multilineTextAlignment(.center)
+
+            Button {
+                clearFilters()
+            } label: {
+                Text("Clear Filters")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(AppTheme.surface)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Finished state
@@ -396,8 +519,25 @@ struct ItemSelectionView: View {
             if isAllSelected {
                 selectedIDs.removeAll()
             } else {
-                selectedIDs = Set(visibleItems.map(\.id))
+                selectedIDs = Set(displayedItems.map(\.id))
             }
+        }
+    }
+
+    private func applyFilters(_ filters: Set<ItemFilter>) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            activeFilters = filters
+
+            // Never keep items selected once a filter hides them, otherwise
+            // the delete bar would count items the user can't see.
+            let displayedIDs = Set(displayedItems.map(\.id))
+            selectedIDs.formIntersection(displayedIDs)
+        }
+    }
+
+    private func clearFilters() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            activeFilters.removeAll()
         }
     }
 
