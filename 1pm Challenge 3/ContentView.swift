@@ -67,9 +67,13 @@ struct ContentView: View {
     private func destination(for category: StorageCategory) -> some View {
         switch category {
         case .photos:
-            OverviewPage(kind: .photos)
+            OverviewPage(kind: .photos) {
+                await store.refresh()
+            }
         case .videos:
-            OverviewPage(kind: .videos)
+            OverviewPage(kind: .videos) {
+                await store.refresh()
+            }
         case .files:
             OverviewPage(kind: .files) {
                 await store.refresh()

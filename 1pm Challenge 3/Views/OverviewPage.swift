@@ -83,7 +83,10 @@ struct OverviewPage: View {
             OverviewCategoryDetailView(
                 kind: kind,
                 usage: viewModel.usage(for: category)
-            )
+            ) {
+                await onLibraryChanged?()
+                viewModel.rescan()
+            }
         }
         .fileImporter(
             isPresented: $isImporting,

@@ -8,12 +8,14 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Informational detail page for one overview category. Management actions
-/// are intentionally not included yet; this page only proves the selection
-/// and displays the real items, count and storage.
+/// Informational detail page for one overview category. It lists the real
+/// items, count and storage, and leads to selection for deleting items.
 struct OverviewCategoryDetailView: View {
     let kind: StorageCategory
     let usage: OverviewUsage
+    var onItemsDeleted: () async -> Void = {}
+
+    @State private var isSelecting = false
 
     private var sortedItems: [OverviewItem] {
         usage.items.sorted {
@@ -44,7 +46,9 @@ struct OverviewCategoryDetailView: View {
                         }
                     }
 
-                    Text("Detailed management tools are coming soon.")
+                    Text(usage.items.isEmpty
+                         ? "There are no items to manage in this category."
+                         : "Select items to remove them from this iPhone.")
                         .font(.system(size: 11.5, weight: .regular))
                         .foregroundStyle(AppTheme.tertiaryText)
                         .multilineTextAlignment(.center)
@@ -58,6 +62,25 @@ struct OverviewCategoryDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Select") {
+                    isSelecting = true
+                }
+                .font(.system(size: 15, weight: .semibold))
+                .tint(.primary)
+                .disabled(usage.items.isEmpty)
+                .accessibilityHint("Choose items to delete")
+            }
+        }
+        .navigationDestination(isPresented: $isSelecting) {
+            ItemSelectionView(
+                category: usage.category,
+                items: usage.items
+            ) {
+                await onItemsDeleted()
+            }
+        }
     }
 
     private var header: some View {
@@ -131,7 +154,7 @@ struct OverviewCategoryDetailView: View {
     }
 }
 
-private struct OverviewItemThumbnail: View {
+struct OverviewItemThumbnail: View {
     let item: OverviewItem
     let tint: Color
 
