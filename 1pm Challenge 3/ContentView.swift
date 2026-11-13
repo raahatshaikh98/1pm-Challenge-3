@@ -38,7 +38,7 @@ struct ContentView: View {
                 destination(for: category)
             }
             .navigationDestination(for: CleanCategoryRoute.self) { route in
-                CleanPlaceholderView(category: route.category)
+                destination(for: route.category)
             }
         }
         .tint(AppTheme.accent)

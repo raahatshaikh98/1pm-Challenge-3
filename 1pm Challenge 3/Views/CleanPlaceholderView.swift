@@ -5,8 +5,8 @@
 
 import SwiftUI
 
-/// Distinguishes a row chosen from the broom menu from a chart selection, so
-/// the two can open different destinations while sharing one navigation path.
+/// Distinguishes a row chosen from the broom menu from a chart selection while
+/// sharing one navigation path. Both currently open the category's overview.
 struct CleanCategoryRoute: Hashable {
     let category: StorageCategory
 }
